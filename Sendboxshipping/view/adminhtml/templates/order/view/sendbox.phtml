@@ -9,7 +9,7 @@ h2{
 }
 </style>
 </head>
-<body> 
+<body>
 <?php 
 class Sendbox_Shipping_API{
     //make a post to sendbox api using curl.
@@ -113,7 +113,107 @@ class Sendbox_Shipping_API{
      $wallet_balance = $payment_obj->funds;
      return $wallet_balance;
      
-}
+} 
+
+
+
+//check auth function 
+function checkauth(){
+    $sendbox_obj = new Sendbox_Shipping_API();
+    $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
+        $resource = $objectManager->get('Magento\Framework\App\ResourceConnection');
+        $connection = $resource->getConnection();
+        $tableName = $resource->getTableName("sendbox");
+
+        $sql = "SELECT * FROM " . $tableName;
+        $result = $connection->fetchAll($sql);
+        foreach( $result as $value ){
+         $auth_header = $value['auth_token'];
+        }
+    
+
+    $type = "application/json";
+
+    $request_headers = array(
+        "Content-Type: " .$type,
+        "Authorization: " .$auth_header,
+    ); 
+
+    $profile_url = $sendbox_obj->get_sendbox_api_url('profile');
+    $profile_res = $sendbox_obj->get_api_response_with_header($profile_url,$request_headers);
+    $profile_obj = json_decode($profile_res);
+    //var_dump($profile_obj, property_exists($profile_obj, 'title'));
+
+    
+    if(isset($profile_obj->title)){
+        //make a new request to oauth
+    
+        $s_url = 'https://live.sendbox.co/oauth/access/access_token/refresh?';
+        $app_id =  $this->helper('Sendbox\Sendboxshipping\Helper\Data')->getConfig('carriers/sendboxshipping/appid');
+        
+        $client_secret =  $this->helper('Sendbox\Sendboxshipping\Helper\Data')->getConfig('carriers/sendboxshipping/clientsecret');
+        foreach( $result as $value ){
+            $refresh_token = $value['refresh_token'];
+           }
+        $url_oauth = $s_url.'app_id='.$app_id.'&client_secret='.$client_secret;
+        $type = "application/json";
+
+        $headers = array(
+            "Content-Type: " .$type,
+            "Refresh-Token: " .$refresh_token,
+        ); 
+        //var_dump($url_oauth);
+        $oauth_res = $sendbox_obj->get_api_response_with_header($url_oauth,$headers);
+        $oauth_obj = json_decode($oauth_res);
+        if(isset($oauth_obj->access_token)){
+            $new_auth = $oauth_obj->access_token;
+        }
+        if(isset($oauth_obj->refresh_token)){
+            $new_refresh = $oauth_obj->refresh_token;
+        }
+       
+        foreach( $result as $value ){
+            $ID = $value['id'];
+           } 
+
+           $values = "auth_token='".$new_auth."', refresh_token='".$new_refresh."'";
+         
+           $sql_query = "UPDATE " .$tableName. " SET " . $values . " WHERE id = ". $ID . ";";
+           $connection->query($sql_query);
+        $auth_header = $new_auth;
+    }
+    else{
+        foreach( $result as $value ){
+            $auth_header = $value['auth_token'];
+           }
+    }
+
+    return $auth_header;
+} 
+ 
+$shipment_code_cook = NULL;
+ if (isset($_COOKIE['shipment_code'])) {
+    $shipment_code_cook = $_COOKIE['shipment_code']; 
+    $orderId = $this->getRequest()->getParam('order_id');
+    $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
+    $order = $objectManager->create('\Magento\Sales\Model\OrderRepository')->get($orderId);
+    $resource = $objectManager->get('Magento\Framework\App\ResourceConnection');
+    $connection = $resource->getConnection();
+
+    $entity_id = $order->getEntityId();
+    $tableName = $resource->getTableName("sales_order");
+    $sql = "SELECT * FROM $tableName LIMIT 1"; 
+    $d = $connection->fetchAll($sql);
+    if(!isset($d['sendbox_shipment_code'])){
+       $myquery = "ALTER TABLE $tableName ADD sendbox_shipment_code varchar(255)";
+       $connection->query($myquery);
+    } 
+    $save_code = "UPDATE $tableName SET sendbox_shipment_code = $shipment_code_cook WHERE entity_id = $entity_id;";
+    $connection->query($save_code);
+	
+}; 
+
+
 
 // Get quotes for rates
             $orderId = $this->getRequest()->getParam('order_id');
@@ -122,19 +222,20 @@ class Sendbox_Shipping_API{
         $connection = $resource->getConnection();
         $tableName = $resource->getTableName("sendbox");
         
-        $sql = "SELECT * FROM " . $tableName;
-        $result = $connection->fetchAll($sql);
-        foreach( $result as $value ){
-         $api_key = $value['auth_token'];
-        }
-        $auth_header = $api_key;
+      
+
+        $auth_header = checkauth();
         $type = "application/json";
         
         $request_headers = array(
         "Content-Type: " .$type,
-        "Authorization: " .$api_key,
+        "Authorization: " .$auth_header,
         ); 
             $order = $objectManager->create('\Magento\Sales\Model\OrderRepository')->get($orderId);
+
+       /*      
+         $entity_id = $order->getEntityId();
+         var_dump($entity_id); */
             $origin_country = "Nigeria";
             $origin_state =$this->helper('Sendbox\Sendboxshipping\Helper\Data')->getConfig('carriers/sendboxshipping/state');
             $origin_city = $this->helper('Sendbox\Sendboxshipping\Helper\Data')->getConfig('carriers/sendboxshipping/city');
@@ -169,14 +270,14 @@ class Sendbox_Shipping_API{
         // Set HTTP Header for POST request 
         curl_setopt($ch, CURLOPT_HTTPHEADER, array(
         'Content-Type: application/json',
-        'Authorization:'.$api_key)
+        'Authorization:'.checkauth())
         );
    
       // Submit the POST request
              $result = curl_exec($ch);
              $sendbox_quotes = json_decode($result, true);
   
-   
+             //var_dump($sendbox_quotes);
            // Close cURL session handle
               curl_close($ch);  
              $rates =$sendbox_quotes['rates'];
@@ -220,14 +321,9 @@ class Sendbox_Shipping_API{
             
 
             array_push($item_list, $item_data);
-            //$item->getStoreId();
-            //$item->getProductId();
-    
-            //$item->getSku();
-            //$item->getName();
-            //$item->getQtyOrdered();
-            //$item->getPrice();
-         } 
+           
+         }
+         
 
          $shipment_params = array(
              'origin_name' => $origin_name,
@@ -250,83 +346,57 @@ class Sendbox_Shipping_API{
             'channel_code' => "mobile_web",
             'pickup_date' => $pickup_date,
            'deliver_priority_code' => 'next_day',
-           "api_key" => $api_key
+           "api_key" => checkauth()
           // 'selected_courier_id'=> $rates_id
-         ); 
+         );  
 
-        
-       // echo($shipment_payload);
-         
-           // Prepare new cURL resource for shipment
-        //    $shipment = curl_init('https://live.sendbox.co/shipping/shipments');
-        //    curl_setopt($shipment, CURLOPT_RETURNTRANSFER, true);
-        //    curl_setopt($shipment, CURLINFO_HEADER_OUT, true);
-        //    curl_setopt($shipment, CURLOPT_POST, true);
-        //    curl_setopt($shipment, CURLOPT_POSTFIELDS, $shipment_payload);
-     
-          // Set HTTP Header for POST request 
-        //   curl_setopt($shipment, CURLOPT_HTTPHEADER, array(
-        //   'Content-Type: application/json',
-        //   'Authorization:'.$api_key)
-        //   );
-     
-        // Submit the POST request
-            //    $shipment_res = curl_exec($shipment);
-            //    $shipment_obj = json_decode($shipment_res, true);
-               
-     
-             // Close cURL session handle
-            //     curl_close($shipment);        
-         
-            // var_dump($shipment_obj);
+        // $url_payload = json_encode($url_params);
+         //setcookie("url_payload", $url_payload);
 
-        // var_dump($item_list);
-       
-/* $orderId = $this->getRequest()->getParam('order_id');
-$objectManager = \Magento\Framework\App\ObjectManager::getInstance(); 
-$order = $objectManager->create('\Magento\Sales\Model\OrderRepository')->get($orderId);
+         $shipment_payload = json_encode($shipment_params);
+       //print($shipment_payload);
+       setcookie("shipment_payload", $shipment_payload);
 
-$custLastName= $order->getCustomerLastname();
-$shippingaddress=$order->getShippingAddress();   
-$orderItems = $order->getAllItems();
 
-foreach ($orderItems as $item) {
-    $item->getItemId();
-    $item->getOrderId();
-    $item->getStoreId();
-    $item->getProductId();
- 
-    //print_r($item->getProductOptions());
- 
-    $item->getSku();
-    $item->getName();
-    $item->getQtyOrdered();
-    $item->getPrice();
- }
- */
-
-//var_dump($order->getTotalItemCount());
-
+      
 
 ?>
 
-<script>
-function getCookie(cname) {
-  var name = cname + "=";
-  var decodedCookie = decodeURIComponent(document.cookie);
-  var ca = decodedCookie.split(';');
-  for(var i = 0; i <ca.length; i++) {
-    var c = ca[i];
-    while (c.charAt(0) == ' ') {
-      c = c.substring(1);
-    }
-    if (c.indexOf(name) == 0) {
-      return c.substring(name.length, c.length);
-    }
+<script> 
+console.log('check if the js works'); 
 
-  return "";
+function setCookie(name,value,days) {
+    var expires = "";
+    if (days) {
+        var date = new Date();
+        date.setTime(date.getTime() + (days*24*60*60*1000));
+        expires = "; expires=" + date.toUTCString();
+    }
+ document.cookie = name + "=" + (value || "")  + expires + "; path=/";
+}
+
+function getCookie(name) {
+    // Split cookie string and get all individual name=value pairs in an array
+    var cookieArr = document.cookie.split(";");
+    
+    // Loop through the array elements
+    for(var i = 0; i < cookieArr.length; i++) {
+        var cookiePair = cookieArr[i].split("=");
+        
+        /* Removing whitespace at the beginning of the cookie name
+        and compare it with the given string */
+        if(name == cookiePair[0].trim()) {
+            // Decode the cookie value and return
+
+            return decodeURIComponent(cookiePair[1]);
+        }
+    }
+    
+    // Return null if not found
+    return null;
 }
    function docReady(fn) {
+
     // see if DOM is already available
     if (document.readyState === "complete" || document.readyState === "interactive") {
         // call on next available tick
@@ -335,10 +405,11 @@ function getCookie(cname) {
         document.addEventListener("DOMContentLoaded", fn);
     }
 }    
- console.log('sometext');
+ //console.log('sometext');
  docReady(function() {
-    //  console.log(document.cookie);
+    
     var rad = document.getElementsByName("rate");
+    console.log(rad);
     rad.forEach((e) => {
         e.addEventListener('change', (() => {   
                  
@@ -351,9 +422,10 @@ function getCookie(cname) {
 
 }))
     })
-
+    
     const form = document.getElementById("shipment-form");
     form.onsubmit = ((e) => {
+        console.log("sssssssssss");
         const rates = document.getElementsByName('rate');
         let rate_id;
         rates.forEach((e) => {
@@ -366,6 +438,7 @@ function getCookie(cname) {
             alert("select rate")
             return
         }
+        console.log('ssssssssssssssssssssss');
 
         bookShipment(rate_id);
         console.log("eoeeoje");
@@ -403,22 +476,53 @@ function getCookie(cname) {
     const bookShipment = ((courier_id) => {
         
         let shipmentPayload = getCookie("shipment_payload");
+        console.log(shipmentPayload);
+      
         shipmentPayload = JSON.parse(shipmentPayload);
         console.log(typeof(shipmentPayload));
 
         shipmentPayload["selected_courier_id"] = courier_id;
         console.log(shipmentPayload);
         const { api_key, ...shipmentPayloadData } = shipmentPayload;
+        for(const key in shipmentPayloadData){
+			let value = shipmentPayloadData[key];
+			if (typeof(value) === 'string' || value instanceof String){
+				console.log(value, value.indexOf("+"))
+				let newVal = "";
+
+				for (i=0; i<value.length; i++){
+					if(value[i] !== "+"){
+						newVal+=value[i] 
+					}
+					if (value[i]  === "+"){
+						newVal += " ";
+					}
+				}
+			shipmentPayloadData[key] = newVal;
+
+			}
+		}
+
         console.log(shipmentPayloadData);
         postData('https://cors-anywhere.herokuapp.com/https://live.sendbox.co/shipping/shipments', shipmentPayloadData, api_key)
         .then((data) => {
             if (!data){return}
-            console.log('maaaaaaaaaaaaaaaaaaaa') 
-            document.getElementById("ship-btn").style.display = "none"
-            //const codeDisplay = document.getElementById("show_dem").innerHTML
-            //console.log(codeDisplay)
-            //console.dir(codeDisplay)
-           // codeDisplay.innerText = `Your code is ${data["code"]}`;
+            
+                 const shipment_code = data.code;
+                const formData  = new FormData();
+                
+                formData.append("shipment_code", shipment_code); 
+               
+                console.log(shipment_code);
+
+                setCookie('shipment_code',shipment_code,7);
+
+                //postPData(`${url}`, formData); 
+
+                
+            //console.log('maaaaaaaaaaaaaaaaaaaa')
+            document.getElementById("ship-btn").style.display = "none" 
+           
            alert(`Your sendbox tracking code for this order is ${data["code"]}`);
            document.getElementById("show_dem").innerHTML = `<b>Your sendbox tracking code for this order is ${data["code"]} </b>`;
             console.log(data); // JSON data parsed by `response.json()` call
@@ -426,8 +530,7 @@ function getCookie(cname) {
 });
 
         
-    })
-    
+ })
     // DOM is loaded and ready for manipulation here
 });
 </script>
@@ -436,7 +539,13 @@ function getCookie(cname) {
 
 <h2>Ship With Sendbox</h2> 
 
-<form name="shipment-form" method="POST" id="shipment-form">
+<form name="shipment-form" method="POST" id="shipment-form"> 
+<?php
+              
+              if($shipment_code_cook):?> 
+              <b>  your tracking code for this shipment is <?php echo( $shipment_code_cook )?></b>
+              <?php
+            else:?>
 		  <table class="table">
 		
             <tbody>
@@ -463,13 +572,12 @@ function getCookie(cname) {
 			  </td>
 			  
 			  </tr>
-             
 			 <tr> 
 			 <td id ="show_dem">
 			 <button class="btn btn-primary sendbox-shipping-add" id="ship-btn" > Request Shipment</button>
 			</td>
 			</tr>
-		
+			<?php endif; ?>
             </tbody>
 		  </table>
 		  </form>

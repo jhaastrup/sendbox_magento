@@ -1,0 +1,32 @@
+{
+    "name": "sendbox/sendboxshipping",
+    "description": "A custom shipping module that allows you ship from your store in Nigeria to other countries",
+    "type": "magento2-module",
+    "version": "1.0.0",
+    "license": [
+      "OSL-3.0",
+      "AFL-3.0"
+    ], 
+
+    "authors": [
+        {
+            "name": "Sendbox Technologies",
+            "email": "support@sendbox.ng",
+            "homepage": "https://m.sendbox.co/",
+            "role": "Developer"
+        }
+    ],
+
+    "require": {
+      "php": "~7.1.3|~7.2.0",
+      "magento/framework": "~100.0.4"
+    },
+    "autoload": {
+      "files": [ "registration.php" ],
+      "psr-4": {
+        "Sendbox\\Sendboxshipping\\": ""
+      }
+    }
+  }
+  
+  
