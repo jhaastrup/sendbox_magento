@@ -8,80 +8,6 @@ use Zend\Http\Request;
 use Zend\Json\Json;
 
 
-
-class Sendbox_Shipping_API{
-    //make a post to sendbox api using curl.
-    public function post_on_api_by_curl($url, $data, $api_key)
-    {
-        $ch = curl_init($url);
-        // Setup request to send json via POST.
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type:application/json', 'Authorization:' . $api_key));
-        // Return response instead of printing.
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        // Send request.
-        $result = curl_exec($ch);
-        curl_close($ch);
-        // Print response.
-        return $result;
-    }
-      //make a get request using curl to sendbox
-
-      public function get_api_response_by_curl($url)
-      {
-          $handle = curl_init();
-          curl_setopt($handle, CURLOPT_URL, $url);
-          curl_setopt($handle, CURLOPT_RETURNTRANSFER, true);
-          $output = curl_exec($handle);
-          curl_close($handle);
-          return $output;
-      } 
-
-        //make request to sendbox with header
-
-    public function get_api_response_with_header($url, $request_headers){
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $request_headers);
-        $season_data = curl_exec($ch);
-        if (curl_errno($ch)) {
-          print "Error: " . curl_error($ch);
-            exit();
-        }
-        // Show me the result
-        curl_close($ch);
-        return $season_data;
-
-    } 
-
-     //all sendbox endpoints
-     public function get_sendbox_api_url($url_type)
-     {
-         if ('delivery_quote' == $url_type) {
-             $url = 'https://api.sendbox.ng/v1/merchant/shipments/delivery_quote';
-         } elseif ('countries' == $url_type) {
-             $url = 'https://api.sendbox.co/auth/countries?page_by={' . '"per_page"' . ':264}';
-         }
-         elseif('city' == $url_type){
-             $url = 'https://api.sendbox.co/auth/cities?page_by=&filter_by={"state_code":"LOS"}';
-         }
-          elseif ('states' == $url_type) {
-             $url = 'https://api.sendbox.co/auth/states?page_by={' . '"per_page"' . ':264}&filter_by={'.'"country_code"'.':"NG"'.'}';
-         } elseif ('shipments' == $url_type) {
-             $url = 'https://api.sendbox.ng/v1/merchant/shipments';
-         } elseif ('item_type' == $url_type) {
-             $url = 'https://api.sendbox.ng/v1/item_types';
-         } elseif ('profile' == $url_type) {
-             $url = 'https://api.sendbox.co/oauth/profile';
-         }else {
-             $url = '';
-         }
-         return $url;
-     }
-}
-
-
 class Shipping extends \Magento\Shipping\Model\Carrier\AbstractCarrier implements
     \Magento\Shipping\Model\Carrier\CarrierInterface
 {
@@ -100,6 +26,7 @@ class Shipping extends \Magento\Shipping\Model\Carrier\AbstractCarrier implement
      */
     protected $_rateMethodFactory;
     protected $_checkoutSession;
+    protected $_shippingApi;
     //protected $zendClient;
 
 
@@ -120,12 +47,14 @@ class Shipping extends \Magento\Shipping\Model\Carrier\AbstractCarrier implement
         \Magento\Shipping\Model\Rate\ResultFactory $rateResultFactory,
         \Magento\Quote\Model\Quote\Address\RateResult\MethodFactory $rateMethodFactory,
         \Magento\Checkout\Model\Session $checkoutSession,
+        \Sendbox\Sendboxshipping\Model\Carrier\SendboxShippingAPI $shippingApi,
        // \Zend\Http\Client $zendClient,
         array $data = []
     ) {
         $this->_rateResultFactory = $rateResultFactory;
         $this->_rateMethodFactory = $rateMethodFactory;
         $this->_checkoutSession = $checkoutSession;
+        $this->_shippingApi = $shippingApi;
         //$this->zendClient = $zendClient;
         parent::__construct($scopeConfig, $rateErrorFactory, $logger, $data);
     }
@@ -133,17 +62,95 @@ class Shipping extends \Magento\Shipping\Model\Carrier\AbstractCarrier implement
     /**
      * get allowed methods
      * @return array
-     */
+     */ 
     public function getAllowedMethods()
     {
         return [$this->_code => $this->getConfigData('name')];
     }
     /**
      * @return float
-     */
+     */ 
+
+     //This function checks if auth_token is still valid
+
+     public function checkAuth(){
+        $sendbox_obj = $this->_shippingApi;
+        $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
+            $resource = $objectManager->get('Magento\Framework\App\ResourceConnection');
+            $connection = $resource->getConnection();
+            $tableName = $resource->getTableName("sendbox");
+    
+            $sql = "SELECT * FROM " . $tableName;
+            $result = $connection->fetchAll($sql);
+            foreach( $result as $value ){
+             $auth_header = $value['auth_token'];
+            }
+        
+    
+        $type = "application/json";
+    
+        $request_headers = array(
+            "Content-Type: " .$type,
+            "Authorization: " .$auth_header,
+        ); 
+    
+        $profile_url = $sendbox_obj->get_sendbox_api_url('profile');
+        $profile_res = $sendbox_obj->get_api_response_with_header($profile_url,$request_headers);
+        $profile_obj = json_decode($profile_res);
+        //var_dump($profile_obj, property_exists($profile_obj, 'title'));
+    
+        
+        if(isset($profile_obj->title)){
+            //make a new request to oauth
+        
+            $s_url = 'https://live.sendbox.co/oauth/access/access_token/refresh?';
+            $app_id =  $this->helper('Sendbox\Sendboxshipping\Helper\Data')->getConfig('carriers/sendboxshipping/appid');
+            
+            $client_secret =  $this->helper('Sendbox\Sendboxshipping\Helper\Data')->getConfig('carriers/sendboxshipping/clientsecret');
+            foreach( $result as $value ){
+                $refresh_token = $value['refresh_token'];
+               }
+            $url_oauth = $s_url.'app_id='.$app_id.'&client_secret='.$client_secret;
+            $type = "application/json";
+    
+            $headers = array(
+                "Content-Type: " .$type,
+                "Refresh-Token: " .$refresh_token,
+            ); 
+            //var_dump($url_oauth);
+            $oauth_res = $sendbox_obj->get_api_response_with_header($url_oauth,$headers);
+            $oauth_obj = json_decode($oauth_res);
+            if(isset($oauth_obj->access_token)){
+                $new_auth = $oauth_obj->access_token;
+            }
+            if(isset($oauth_obj->refresh_token)){
+                $new_refresh = $oauth_obj->refresh_token;
+            }
+           
+            foreach( $result as $value ){
+                $ID = $value['id'];
+               } 
+    
+               $values = "auth_token='".$new_auth."', refresh_token='".$new_refresh."'";
+             
+               $sql_query = "UPDATE " .$tableName. " SET " . $values . " WHERE id = ". $ID . ";";
+               $connection->query($sql_query);
+            $auth_header = $new_auth;
+        }
+        else{
+            foreach( $result as $value ){
+                $auth_header = $value['auth_token'];
+               }
+        }
+    
+        return $auth_header;
+          
+     }
+
+
     private function getShippingPrice()
     {
-        $sendbox_obj = new Sendbox_Shipping_API();
+        $sendbox_obj = $this->_shippingApi;
         $origin_country = "Nigeria";
         $origin_state = $this->getConfigData('state');
         $destination_country = $this->_checkoutSession->getQuote()->getShippingAddress()->getCountry();
@@ -153,12 +160,12 @@ class Shipping extends \Magento\Shipping\Model\Carrier\AbstractCarrier implement
         $connection = $resource->getConnection();
         $tableName = $resource->getTableName("sendbox");
 
-        $sql = "SELECT * FROM " . $tableName;
+       /*  $sql = "SELECT * FROM " . $tableName;
         $result = $connection->fetchAll($sql);
         foreach( $result as $value ){
          $api_key = $value['auth_token'];
-        }
-        //$api_key = $result[0]->auth_token;
+        } */
+        $api_key = $this->checkAuth();
 
         $cart = $objectManager->get('\Magento\Checkout\Model\Cart');
         $items = $cart->getQuote()->getAllItems();
@@ -191,8 +198,8 @@ class Shipping extends \Magento\Shipping\Model\Carrier\AbstractCarrier implement
       );
  
     // Submit the POST request
-           $result = curl_exec($ch);
-           $sendbox_quotes = json_decode($result, true);
+           $results = curl_exec($ch);
+           $sendbox_quotes = json_decode($results, true);
 
  
          // Close cURL session handle
@@ -207,7 +214,8 @@ class Shipping extends \Magento\Shipping\Model\Carrier\AbstractCarrier implement
             $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/bob.log');
             $logger = new \Zend\Log\Logger();
             $logger->addWriter($writer);
-            $logger->info(gettype($sendbox_quotes));
+            //$logger->info(gettype($sendbox_quotes));
+            $logger->info( $this->getShippingPrice());
 
          
 

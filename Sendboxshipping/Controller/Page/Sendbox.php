@@ -26,21 +26,21 @@ class Sendbox extends \Magento\Framework\App\Action\Action
      * @return \Magento\Framework\Controller\ResultInterface
      */
     public function execute()
-    {  
-      $server_obj = ($_SERVER);
-     $get_state = ($_GET["state"]);
-    $get_code = ($_GET["code"]);
+    { 
 
-    $new_url = $get_state."&code=" .$get_code;
+     $get_params = $this->getRequest()->getParams();
+     $state = $get_params['state'];
+     $code = $get_params['code'];
+
+    $new_url = $state."&code=" .$code;
+   // echo 'nah man you be';
+
+    $this->_redirect($new_url);
+
      
-      header('Location:'.$new_url);
-      die();
+     // header('Location:'.$new_url);
+      //die();
        
-      // echo 'nah man you be';
-       //$result = $this->resultJsonFactory->create();
-      //$data =$_SERVER['HTTP_HOST']; //['message' => 'Hello world!'];
-
-//return $result->setData($data);
 } 
 
 }

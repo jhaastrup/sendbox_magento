@@ -10,108 +10,44 @@ h2{
 </style>
 </head>
 <body>
-<?php 
-class Sendbox_Shipping_API{
-    //make a post to sendbox api using curl.
-    public function post_on_api_by_curl($url, $data, $api_key)
-    {
-        $ch = curl_init($url);
-        // Setup request to send json via POST.
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type:application/json', 'Authorization:' . $api_key));
-        // Return response instead of printing.
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        // Send request.
-        $result = curl_exec($ch);
-        curl_close($ch);
-        // Print response.
-        return $result;
-    }
-  
-    //make a get request using curl to sendbox
-  
-    public function get_api_response_by_curl($url)
-    {
-        $handle = curl_init();
-        curl_setopt($handle, CURLOPT_URL, $url);
-        curl_setopt($handle, CURLOPT_RETURNTRANSFER, true);
-        $output = curl_exec($handle);
-        curl_close($handle);
-        return $output;
-    }
-    //make request to sendbox with header
-  
-    public function get_api_response_with_header($url, $request_headers){
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $request_headers);
-        $season_data = curl_exec($ch);
-        if (curl_errno($ch)) {
-            print "Error: " . curl_error($ch);
-            exit();
-        }
-        // Show me the result
-        curl_close($ch);
-        return $season_data;
-  
-    }
-  
-  
-    //all sendbox endpoints
-    public function get_sendbox_api_url($url_type)
-    {
-        if ('delivery_quote' == $url_type) {
-            $url = 'https://live.sendbox.co/shipping/shipment_delivery_quote';
-        } elseif ('countries' == $url_type) {
-            $url = 'https://api.sendbox.co/auth/countries?page_by={' . '"per_page"' . ':264}';
-        } elseif ('states' == $url_type) {
-            $url = 'https://api.sendbox.co/auth/states';
-        } elseif ('shipments' == $url_type) {
-            $url = 'https://live.sendbox.co/shipping/shipments';
-        } elseif('payment' == $url_type){
-        $url = 'https://live.sendbox.co/payments/profile';
-        }
-        elseif ('item_type' == $url_type) {
-            $url = 'https://api.sendbox.ng/v1/item_types';
-        } elseif ('profile' == $url_type) {
-            $url = 'https://live.sendbox.co/oauth/profile';
-        }else {
-            $url = '';
-        }
-        return $url;
-    }
-  
-  
-  } 
+<?php
+
 
    //GET WALLET BALANCE
 
         function wallet_balance(){ 
-        $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
-        $resource = $objectManager->get('Magento\Framework\App\ResourceConnection');
-        $connection = $resource->getConnection();
-        $tableName = $resource->getTableName("sendbox");
+       // $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
+        //$resource = $objectManager->get('Magento\Framework\App\ResourceConnection');
+        //$connection = $resource->getConnection();
+        //$tableName = $resource->getTableName("sendbox");
 
-        $sql = "SELECT * FROM " . $tableName;
+      /*   $sql = "SELECT * FROM " . $tableName;
         $result = $connection->fetchAll($sql);
         foreach( $result as $value ){
          $api_key = $value['auth_token'];
         }
+ */
+    //$sendbox_obj = new Sendbox_Shipping_API();
 
-    $sendbox_obj = new Sendbox_Shipping_API();
-    $auth_header = $api_key;
     $type = "application/json";
-
     $request_headers = array(
         "Content-Type: " .$type,
-        "Authorization: " .$api_key,
+        "Authorization: " .checkauth(),
     ); 
-    $payment_url = $sendbox_obj->get_sendbox_api_url('payment');
-    $payment_res = $sendbox_obj->get_api_response_with_header($payment_url,$request_headers);
-    $payment_obj = json_decode($payment_res);
-     $wallet_balance = $payment_obj->funds;
-     return $wallet_balance;
+
+ 
+    $ch = curl_init('https://live.sendbox.co/payments/profile');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $request_headers);
+    $season_data = curl_exec($ch);
+    if (curl_errno($ch)) {
+        throw new \Exception('Error:'. curl_error($ch));
+       }
+    // Show me the result
+    curl_close($ch);
+    $payment_obj = json_decode($season_data);
+    $wallet_balance = $payment_obj->funds;
+    return $wallet_balance;
      
 } 
 
@@ -119,7 +55,8 @@ class Sendbox_Shipping_API{
 
 //check auth function 
 function checkauth(){
-    $sendbox_obj = new Sendbox_Shipping_API();
+
+    //$sendbox_obj = new Sendbox_Shipping_API();
     $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
         $resource = $objectManager->get('Magento\Framework\App\ResourceConnection');
         $connection = $resource->getConnection();
@@ -129,8 +66,7 @@ function checkauth(){
         $result = $connection->fetchAll($sql);
         foreach( $result as $value ){
          $auth_header = $value['auth_token'];
-        }
-    
+        } 
 
     $type = "application/json";
 
@@ -139,9 +75,21 @@ function checkauth(){
         "Authorization: " .$auth_header,
     ); 
 
-    $profile_url = $sendbox_obj->get_sendbox_api_url('profile');
-    $profile_res = $sendbox_obj->get_api_response_with_header($profile_url,$request_headers);
+    $profile_data = curl_init("https://live.sendbox.co/oauth/profile");
+    curl_setopt($profile_data, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($profile_data, CURLOPT_HTTPHEADER, $request_headers);
+    $profile_res = curl_exec($profile_data);
+    if (curl_errno($profile_data)) {
+        throw new \Exception('Error:'. curl_error($profile_data));
+       }
+    // Show me the result
+    curl_close($profile_data);
     $profile_obj = json_decode($profile_res);
+    
+
+    //$profile_url = $sendbox_obj->get_sendbox_api_url('profile');
+    //$profile_res = $sendbox_obj->get_api_response_with_header($profile_url,$request_headers);
+    //$profile_obj = json_decode($profile_res);
     //var_dump($profile_obj, property_exists($profile_obj, 'title'));
 
     
@@ -162,9 +110,22 @@ function checkauth(){
             "Content-Type: " .$type,
             "Refresh-Token: " .$refresh_token,
         ); 
-        //var_dump($url_oauth);
-        $oauth_res = $sendbox_obj->get_api_response_with_header($url_oauth,$headers);
+        //var_dump($url_oauth); 
+
+        $refresh_data = curl_init($url_oauth);
+        curl_setopt($refresh_data, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($refresh_data, CURLOPT_HTTPHEADER, $request_headers);
+        $oauth_res = curl_exec($refresh_data);
+        if (curl_errno($refresh_data)) {
+            throw new \Exception('Error:'. curl_error($refresh_data));
+           }
+        // Show me the result
+        curl_close($refresh_data);
         $oauth_obj = json_decode($oauth_res);
+  
+
+        //$oauth_res = $sendbox_obj->get_api_response_with_header($url_oauth,$headers);
+        //$oauth_obj = json_decode($oauth_res);
         if(isset($oauth_obj->access_token)){
             $new_auth = $oauth_obj->access_token;
         }
@@ -190,27 +151,40 @@ function checkauth(){
 
     return $auth_header;
 } 
- 
-$shipment_code_cook = NULL;
- if (isset($_COOKIE['shipment_code'])) {
-    $shipment_code_cook = $_COOKIE['shipment_code']; 
-    $orderId = $this->getRequest()->getParam('order_id');
-    $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
-    $order = $objectManager->create('\Magento\Sales\Model\OrderRepository')->get($orderId);
-    $resource = $objectManager->get('Magento\Framework\App\ResourceConnection');
-    $connection = $resource->getConnection();
 
-    $entity_id = $order->getEntityId();
-    $tableName = $resource->getTableName("sales_order");
-    $sql = "SELECT * FROM $tableName LIMIT 1"; 
-    $d = $connection->fetchAll($sql);
-    if(!isset($d['sendbox_shipment_code'])){
+
+
+
+$orderId = $this->getRequest()->getParam('order_id');
+$objectManager = \Magento\Framework\App\ObjectManager::getInstance();
+
+$order = $objectManager->create('\Magento\Sales\Model\OrderRepository')->get($orderId);
+$entity_id = $order->getEntityId(); 
+$resource = $objectManager->get('Magento\Framework\App\ResourceConnection');
+$connection = $resource->getConnection();
+$tableName = $resource->getTableName("sales_order");
+$sql = "SELECT * FROM $tableName WHERE entity_id= $entity_id"; 
+$dd = $connection->fetchAll($sql);
+$d = $dd[0];
+$shipment_code_cook = NULL;
+
+if(array_key_exists('sendbox_shipment_code', $d) && $d['sendbox_shipment_code']){
+    $shipment_code_cook = $d['sendbox_shipment_code'];
+
+}
+
+ if (!$shipment_code_cook && (isset($_COOKIE['shipment_code_'.$entity_id]))) {
+    $shipment_code_cook = $_COOKIE['shipment_code_'.$entity_id]; 
+      if(!array_key_exists('sendbox_shipment_code', $d)){
+         
        $myquery = "ALTER TABLE $tableName ADD sendbox_shipment_code varchar(255)";
        $connection->query($myquery);
+
     } 
     $save_code = "UPDATE $tableName SET sendbox_shipment_code = $shipment_code_cook WHERE entity_id = $entity_id;";
     $connection->query($save_code);
-	
+     
+    setcookie("shipment_code_".$entity_id, "", time() - 3600);
 }; 
 
 
@@ -323,8 +297,8 @@ $shipment_code_cook = NULL;
             array_push($item_list, $item_data);
            
          }
+        $entity_id = $order->getEntityId();
          
-
          $shipment_params = array(
              'origin_name' => $origin_name,
             'origin_country' => $origin_country,
@@ -346,7 +320,9 @@ $shipment_code_cook = NULL;
             'channel_code' => "mobile_web",
             'pickup_date' => $pickup_date,
            'deliver_priority_code' => 'next_day',
-           "api_key" => checkauth()
+           "api_key" => checkauth(),
+           "entity_id" => $entity_id
+
           // 'selected_courier_id'=> $rates_id
          );  
 
@@ -372,7 +348,9 @@ function setCookie(name,value,days) {
         date.setTime(date.getTime() + (days*24*60*60*1000));
         expires = "; expires=" + date.toUTCString();
     }
- document.cookie = name + "=" + (value || "")  + expires + "; path=/";
+ document.cookie = name + "=" + (value || "")
+ 
+ ;
 }
 
 function getCookie(name) {
@@ -463,7 +441,7 @@ function getCookie(name) {
   console.log(response)
   console.log(response.status)
   const datat =  await response.json()
-  //return {"code": "122345"}
+  return {"code": "122345"}
   if (response.status && response.status == "201"){return datat};
   if ("transaction" in datat){
       alert("Insuffucuent balance login to sendbox and topup your wallet");
@@ -483,7 +461,7 @@ function getCookie(name) {
 
         shipmentPayload["selected_courier_id"] = courier_id;
         console.log(shipmentPayload);
-        const { api_key, ...shipmentPayloadData } = shipmentPayload;
+        const { api_key, entity_id, ...shipmentPayloadData } = shipmentPayload;
         for(const key in shipmentPayloadData){
 			let value = shipmentPayloadData[key];
 			if (typeof(value) === 'string' || value instanceof String){
@@ -513,9 +491,10 @@ function getCookie(name) {
                 
                 formData.append("shipment_code", shipment_code); 
                
-                console.log(shipment_code);
+                console.log(shipment_code, entity_id);
 
-                setCookie('shipment_code',shipment_code,7);
+                setCookie(`shipment_code_${entity_id}`,shipment_code);
+                location.reload();
 
                 //postPData(`${url}`, formData); 
 
