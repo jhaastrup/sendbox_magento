@@ -403,7 +403,7 @@ function getCookie(name) {
     
     const form = document.getElementById("shipment-form");
     form.onsubmit = ((e) => {
-        console.log("sssssssssss");
+        //console.log("sssssssssss");
         const rates = document.getElementsByName('rate');
         let rate_id;
         rates.forEach((e) => {
@@ -441,7 +441,7 @@ function getCookie(name) {
   console.log(response)
   console.log(response.status)
   const datat =  await response.json()
-  return {"code": "122345"}
+  //return {"code": "122345"}
   if (response.status && response.status == "201"){return datat};
   if ("transaction" in datat){
       alert("Insuffucuent balance login to sendbox and topup your wallet");
@@ -495,11 +495,7 @@ function getCookie(name) {
 
                 setCookie(`shipment_code_${entity_id}`,shipment_code);
                 location.reload();
-
-                //postPData(`${url}`, formData); 
-
                 
-            //console.log('maaaaaaaaaaaaaaaaaaaa')
             document.getElementById("ship-btn").style.display = "none" 
            
            alert(`Your sendbox tracking code for this order is ${data["code"]}`);

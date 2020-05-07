@@ -160,11 +160,6 @@ class Shipping extends \Magento\Shipping\Model\Carrier\AbstractCarrier implement
         $connection = $resource->getConnection();
         $tableName = $resource->getTableName("sendbox");
 
-       /*  $sql = "SELECT * FROM " . $tableName;
-        $result = $connection->fetchAll($sql);
-        foreach( $result as $value ){
-         $api_key = $value['auth_token'];
-        } */
         $api_key = $this->checkAuth();
 
         $cart = $objectManager->get('\Magento\Checkout\Model\Cart');
@@ -221,48 +216,7 @@ class Shipping extends \Magento\Shipping\Model\Carrier\AbstractCarrier implement
 
             
          
-           /*  $this->zendClient->reset();
-            $this->zendClient->setUri($url);
-            $this->zendClient->setMethod(\Zend\Http\Request::METHOD_POST); 
-       	    $this->zendClient->setHeaders([
-                'Content-Type' => 'Application/json',
-               
-                'Authorization' => 'Bearer'.$api_key,
-       	    ]);
-       	    $this->zendClient->setParameterPost([
-                'origin_country' => $origin_country,
-                'origin_state' => $origin_state,
-                'destination_country'=>$destination_country,
-                'destination_state' => $destination_state,
-                'weight' => $weight
-            ]);
-       	    $this->zendClient->send();
-            $response = $this->zendClient->getResponse(); */
-
-    
-       
-
-        // $payload_data = new stdClass();
-         //$payload_data->destination_state= $destination_state;
-			//$payload_data->destination_country = $destination_country;
-			//$payload_data->origin_country = $origin_country;
-			//$payload_data->origin_state = $origin_state;
-            //$payload_data->weight = $weight;
-            //$quotes_data = json_encode($payload_data);
          
-        // $session_name = $this->_checkoutSession->getQuote()->getShippingAddress()->getFirstName();
-         //$session_last_name = $this->_checkoutSession->getQuote()->getShippingAddress()->getLastName();
-         //$session_city = $this->_checkoutSession->getQuote()->getShippingAddress()->getCity();
-         //$session_country = $this->_checkoutSession->getQuote()->getShippingAddress()->getCountry();
-         //$session_state = $this->_checkoutSession->getQuote()->getShippingAddress()->getRegion();
-         //$session_address = $this->_checkoutSession->getQuote()->getShippingAddress()->getStreet();
-         //$session_telephone = $this->_checkoutSession->getQuote()->getShippingAddress()->getTelephone();
-         //$session_addr = $session_address[0];
-
-      /*   $configPrice = $this->getConfigData('price');
-
-        $shippingPrice = $this->getFinalPriceWithHandlingFee($configPrice);
-        return $shippingPrice; */
     }
 
    
